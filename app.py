@@ -1,16 +1,18 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import sqlite3
+import random
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
 
-# ✅ Use writable path for cloud
-DB_PATH = "/tmp/stockr.db"
+# ✅ FIXED: use writable path for cloud
+DB_PATH = os.environ.get("DB_PATH", "/tmp/stockr.db")
 
-# ── DB SETUP ─────────────────────────
+# ─── Database Helpers ─────────────────────────
+
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -20,7 +22,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
 
-    c.execute("""
+    c.executescript("""
         CREATE TABLE IF NOT EXISTS inventory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sku TEXT UNIQUE,
@@ -28,24 +30,41 @@ def init_db():
             category TEXT,
             quantity INTEGER,
             min_stock INTEGER,
+            max_stock INTEGER,
             price REAL,
+            value REAL,
+            supplier TEXT,
+            location TEXT,
             status TEXT,
             last_updated TEXT
-        )
+        );
     """)
+    conn.commit()
 
-    # seed minimal data if empty
+    # seed if empty
     if c.execute("SELECT COUNT(*) FROM inventory").fetchone()[0] == 0:
-        items = [
-            ("ELE001", "Laptop", "Electronics", 50, 10, 50000, "in-stock"),
-            ("ELE002", "Mouse", "Electronics", 5, 10, 500, "low"),
-            ("FUR001", "Chair", "Furniture", 0, 5, 2000, "out"),
-        ]
-        for i in items:
+        for i in range(10):
+            qty = random.randint(0, 100)
+            min_s = random.randint(5, 20)
+            price = random.randint(100, 5000)
+
             c.execute("""
-                INSERT INTO inventory (sku,name,category,quantity,min_stock,price,status,last_updated)
-                VALUES (?,?,?,?,?,?,?,?)
-            """, (*i, datetime.now().strftime("%Y-%m-%d")))
+                INSERT INTO inventory (sku,name,category,quantity,min_stock,max_stock,price,value,supplier,location,status,last_updated)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                f"SKU{i+1:03}",
+                f"Item {i+1}",
+                "General",
+                qty,
+                min_s,
+                100,
+                price,
+                qty * price,
+                "SupplierX",
+                f"A-{i}",
+                "in-stock",
+                datetime.now().strftime("%Y-%m-%d")
+            ))
 
     conn.commit()
     conn.close()
@@ -58,11 +77,25 @@ def compute_status(qty, min_stock):
     else:
         return "in-stock"
 
-# ── ROUTES ─────────────────────────
+# ─── ROOT ROUTE (NO MORE 404 DRAMA) ─────────────────
+
+@app.route("/")
+def home():
+    return jsonify({
+        "message": "STOCKR API running",
+        "endpoints": [
+            "/api/health",
+            "/api/inventory"
+        ]
+    })
+
+# ─── HEALTH ─────────────────
 
 @app.route("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+# ─── INVENTORY ─────────────────
 
 @app.route("/api/inventory", methods=["GET"])
 def get_inventory():
@@ -72,8 +105,8 @@ def get_inventory():
     return jsonify([dict(r) for r in rows])
 
 @app.route("/api/inventory", methods=["POST"])
-def add_item():
-    data = request.json
+def create_item():
+    data = request.get_json()
 
     qty = int(data["quantity"])
     min_s = int(data["min_stock"])
@@ -81,22 +114,26 @@ def add_item():
 
     conn = get_db()
     conn.execute("""
-        INSERT INTO inventory (sku,name,category,quantity,min_stock,price,status,last_updated)
-        VALUES (?,?,?,?,?,?,?,?)
+        INSERT INTO inventory (sku,name,category,quantity,min_stock,max_stock,price,value,supplier,location,status,last_updated)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         data["sku"],
         data["name"],
         data["category"],
         qty,
         min_s,
+        int(data.get("max_stock", 100)),
         float(data["price"]),
+        qty * float(data["price"]),
+        data.get("supplier", ""),
+        data.get("location", ""),
         status,
         datetime.now().strftime("%Y-%m-%d")
     ))
     conn.commit()
     conn.close()
 
-    return jsonify({"message": "Item added"})
+    return jsonify({"message": "Item created"})
 
 @app.route("/api/inventory/<int:item_id>", methods=["DELETE"])
 def delete_item(item_id):
@@ -106,8 +143,12 @@ def delete_item(item_id):
     conn.close()
     return jsonify({"message": "Deleted"})
 
-# ── START ─────────────────────────
+# ─── INIT DB ─────────────────
+
 init_db()
 
+# ─── START SERVER (CRUCIAL FIX) ─────────────────
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))  # ✅ FIXED FOR RENDER
+    app.run(host="0.0.0.0", port=port)
