@@ -1,3 +1,6 @@
 flask
 flask-cors
+flask-socketio
+eventlet
 gunicorn
+psycopg2-binary
