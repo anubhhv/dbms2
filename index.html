@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STOCKR — Inventory Management System</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <style>
 :root {
   --y: #FFE000;
@@ -26,6 +27,7 @@
   --tech: 'Share Tech Mono', monospace;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
+html,body { overflow-x:hidden; max-width:100%; }
 html { scroll-behavior:smooth; }
 body { background:var(--black); color:var(--white); font-family:var(--mono); overflow-x:hidden; cursor:none; }
 
@@ -74,11 +76,11 @@ body { background:var(--black); color:var(--white); font-family:var(--mono); ove
 .main { margin-left:220px;flex:1;display:flex;flex-direction:column; }
 
 /* TOPBAR */
-.topbar { position:sticky;top:0;z-index:90;background:var(--dark);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:52px; }
+.topbar { position:sticky;top:0;z-index:90;background:var(--dark);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:52px;overflow:hidden; }
 .topbar-left { display:flex;align-items:center;gap:16px; }
 .page-title { font-family:var(--display);font-size:20px;letter-spacing:3px;color:var(--white); }
 .breadcrumb { font-family:var(--tech);font-size:10px;color:var(--dim);letter-spacing:1px; }
-.topbar-right { display:flex;align-items:center;gap:16px; }
+.topbar-right { display:flex;align-items:center;gap:16px;min-width:0;flex-shrink:1;overflow:hidden; }
 .tb-stat { display:flex;align-items:center;gap:8px;padding:6px 14px;border:1px solid var(--border);background:var(--panel); }
 .tb-stat-val { font-family:var(--display);font-size:16px;color:var(--y); }
 .tb-stat-lbl { font-family:var(--tech);font-size:9px;color:var(--dim);letter-spacing:1px; }
@@ -264,8 +266,66 @@ select.form-input option { background:var(--dark); }
 .toast { position:fixed;bottom:24px;right:24px;background:var(--panel);border:1px solid var(--y);padding:12px 20px;font-family:var(--tech);font-size:10px;color:var(--y);letter-spacing:1px;z-index:9999;transform:translateY(100px);opacity:0;transition:all 0.3s; }
 .toast.show { transform:translateY(0);opacity:1; }
 
-@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.charts-row{grid-template-columns:1fr 1fr}}
+/* ── RESPONSIVE ── */
+@media(max-width:1400px){
+  .charts-row{grid-template-columns:1fr 1fr}
+  .suppliers-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:1200px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .charts-row{grid-template-columns:1fr 1fr}
+  .analytics-grid{grid-template-columns:1fr}
+  .topbar-right .tb-stat:last-of-type{display:none}
+}
+@media(max-width:1024px){
+  .sidebar{width:180px}
+  .main{margin-left:180px}
+  .content{padding:20px 20px}
+  .topbar{padding:0 20px}
+  .charts-row{grid-template-columns:1fr}
+  .mini-charts{grid-template-columns:1fr}
+}
+@media(max-width:820px){
+  body{cursor:auto}
+  #cur,#cur-ring{display:none}
+  .sidebar{
+    width:100%;height:52px;min-height:unset;flex-direction:row;
+    align-items:center;border-right:none;border-bottom:1px solid var(--border);
+    position:fixed;top:0;left:0;right:0;bottom:auto;z-index:200;
+    overflow-x:auto;overflow-y:hidden
+  }
+  .sb-logo{padding:0 16px;border-bottom:none;border-right:1px solid var(--border);flex-shrink:0}
+  .sb-version{display:none}
+  .sb-section{padding:0;display:flex;flex-direction:row;align-items:center}
+  .sb-label{display:none}
+  .sb-item{padding:0 14px;height:52px;border-left:none;border-bottom:2px solid transparent;white-space:nowrap}
+  .sb-item:hover,.sb-item.active{border-left-color:transparent;border-bottom-color:var(--y)}
+  .sb-bottom{display:none}
+  .main{margin-left:0;margin-top:52px}
+  .ticker-wrap{display:none}
+  .topbar{padding:0 16px;height:46px}
+  .topbar-right .tb-time,.topbar-right .tb-stat{display:none}
+  #conn-status{display:block}
+  .content{padding:16px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .charts-row{grid-template-columns:1fr}
+  .suppliers-grid{grid-template-columns:1fr}
+  .analytics-grid{grid-template-columns:1fr}
+  .modal{width:calc(100vw - 32px);max-height:90vh}
+  .form-row{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .kpi-grid{grid-template-columns:1fr}
+  .kpi-val{font-size:32px}
+  .topbar-left .breadcrumb{display:none}
+  .sec-actions{flex-wrap:wrap;gap:6px}
+  .table-toolbar{flex-wrap:wrap;gap:8px}
+  .search-box{max-width:100%;width:100%}
+  .filter-chips{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+  .tbl th,.tbl td{padding:8px 12px}
+}
 </style>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body class="scanlines">
 <div id="cur"></div>
@@ -583,14 +643,16 @@ select.form-input option { background:var(--dark); }
    STOCKR — Frontend with Backend API (localhost:5000)
 ═══════════════════════════════════════════ */
 
-const API = 'http://localhost:5000/api';
+const API = 'https://dbmsproject-7ft6.onrender.com/api';
+const WS_URL = 'https://dbmsproject-7ft6.onrender.com';
 
 /* ── Connection Status ── */
 let backendOnline = false;
+let socket = null;
 
 async function checkHealth() {
   try {
-    const r = await fetch(`${API}/health`, {signal: AbortSignal.timeout(2000)});
+    const r = await fetch(`${API}/health`, {signal: AbortSignal.timeout(4000)});
     backendOnline = r.ok;
   } catch { backendOnline = false; }
   updateConnectionBadge();
@@ -599,8 +661,54 @@ async function checkHealth() {
 function updateConnectionBadge() {
   const el = document.getElementById('conn-status');
   if (!el) return;
-  el.textContent = backendOnline ? '● API CONNECTED' : '● OFFLINE (LOCAL)';
+  el.textContent = backendOnline ? '● LIVE SYNC' : '● OFFLINE (LOCAL)';
   el.style.color = backendOnline ? 'var(--green)' : 'var(--orange)';
+}
+
+function initSocket() {
+  if (!backendOnline) return;
+  socket = io(WS_URL, { transports: ['websocket', 'polling'], reconnectionDelay: 2000 });
+
+  socket.on('connect', () => {
+    updateConnectionBadge();
+  });
+
+  socket.on('disconnect', () => {
+    const el = document.getElementById('conn-status');
+    if (el) { el.textContent = '● RECONNECTING...'; el.style.color = 'var(--orange)'; }
+  });
+
+  socket.on('inventory_update', (data) => {
+    inventory = data.map(normalizeItem);
+    applyFilter();
+    calcKPIs();
+    renderCritical();
+    renderDashAlerts();
+    const st = document.getElementById('sync-time');
+    const st2 = document.getElementById('sync-time2');
+    const ts = new Date().toLocaleTimeString('en-GB',{hour12:false,hour:'2-digit',minute:'2-digit'});
+    if (st) st.textContent = ts;
+    if (st2) st2.textContent = ts;
+  });
+
+  socket.on('suppliers_update', (data) => {
+    suppliersData = data.map(s => ({
+      id: s.sup_id, name: s.name, contact: s.contact || '', phone: s.phone || '',
+      email: s.email || '', city: s.city || '', rating: s.rating || 3,
+      items: s.items || 0, orders: s.orders || 0, onTime: s.on_time || 90, _dbId: s.id
+    }));
+    const view = document.getElementById('view-suppliers');
+    if (view && view.classList.contains('active')) renderSuppliers();
+  });
+
+  socket.on('purchase_orders_update', (data) => {
+    purchaseOrders = data.map(p => ({
+      id: p.po_id, supplier: p.supplier, item: p.item,
+      qty: p.qty, amount: fmt(p.amount), date: p.date, status: p.status
+    }));
+    const view = document.getElementById('view-orders');
+    if (view && view.classList.contains('active')) renderOrders();
+  });
 }
 
 /* ═══════════ DATA ═══════════ */
@@ -611,6 +719,7 @@ let idCounter = 1;
 
 /* ── Load from backend or fallback to generated data ── */
 async function loadInventory() {
+  if (socket && socket.connected) return;
   if (!backendOnline) { generateFallbackData(); return; }
   try {
     const r = await fetch(`${API}/inventory`);
@@ -620,6 +729,7 @@ async function loadInventory() {
 }
 
 async function loadSuppliers() {
+  if (socket && socket.connected) return;
   if (!backendOnline) { generateFallbackSuppliers(); return; }
   try {
     const r = await fetch(`${API}/suppliers`);
@@ -633,6 +743,7 @@ async function loadSuppliers() {
 }
 
 async function loadPurchaseOrders() {
+  if (socket && socket.connected) return;
   if (!backendOnline) { generateFallbackPOs(); return; }
   try {
     const r = await fetch(`${API}/purchase_orders`);
@@ -647,10 +758,14 @@ async function loadPurchaseOrders() {
 function normalizeItem(i) {
   return {
     id: i.id, sku: i.sku, name: i.name, category: i.category,
-    quantity: i.quantity, minStock: i.min_stock, maxStock: i.max_stock || 500,
+    quantity: i.quantity,
+    minStock: i.min_stock !== undefined ? i.min_stock : (i.minStock || 10),
+    maxStock: i.max_stock || i.maxStock || 500,
     price: i.price, value: i.quantity * i.price,
-    supplier: i.supplier || '', location: i.location || '',
-    status: i.status, lastUpdated: i.last_updated
+    supplier: i.supplier || '',
+    location: i.location || '',
+    status: i.status,
+    lastUpdated: i.last_updated || i.lastUpdated || ''
   };
 }
 
@@ -917,6 +1032,7 @@ async function saveItem(){
       let resp,saved;
       if(editingId){
         resp=await fetch(`${API}/inventory/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(!resp.ok){const e=await resp.json();showToast(`⚠ ${e.error||'UPDATE FAILED'}`);return;}
         saved=normalizeItem(await resp.json());
         const idx=inventory.findIndex(i=>i.id===editingId);
         if(idx>-1)inventory[idx]=saved;
@@ -929,11 +1045,10 @@ async function saveItem(){
       showToast(editingId?'✓ ITEM UPDATED — SAVED TO DB':'✓ ITEM ADDED — SAVED TO DB');
     } catch(e){showToast('⚠ SAVE FAILED — CHECK API');return;}
   } else {
-    // Local-only fallback
     const status=computeStatus(qty,min);
     if(editingId){
       const idx=inventory.findIndex(i=>i.id===editingId);
-      if(idx>-1)inventory[idx]={...inventory[idx],...payload,minStock:min,max_stock:500,value:qty*price,status,lastUpdated:new Date().toISOString().split('T')[0]};
+      if(idx>-1)inventory[idx]={...inventory[idx],sku,name,category:payload.category,quantity:qty,minStock:min,maxStock:inventory[idx].maxStock||500,price,value:qty*price,supplier:payload.supplier,location:payload.location,status,lastUpdated:new Date().toISOString().split('T')[0]};
       showToast('✓ ITEM UPDATED (LOCAL ONLY)');
     } else {
       inventory.push({id:++idCounter,sku,name,category:payload.category,quantity:qty,minStock:min,maxStock:500,price,value:qty*price,supplier:payload.supplier,location:payload.location,status,lastUpdated:new Date().toISOString().split('T')[0]});
@@ -1158,14 +1273,24 @@ function renderOrders(){
 /* ═══════════ INIT ═══════════ */
 window.addEventListener('load', async ()=>{
   const lf=document.getElementById('lf');
-  lf.style.width='60%';
+  lf.style.width='40%';
 
   await checkHealth();
+  lf.style.width='70%';
+
+  if (backendOnline) {
+    initSocket();
+    await new Promise(resolve => {
+      const timeout = setTimeout(resolve, 5000);
+      socket.once('inventory_update', () => { clearTimeout(timeout); resolve(); });
+    });
+  } else {
+    generateFallbackData();
+    generateFallbackSuppliers();
+    generateFallbackPOs();
+  }
 
   lf.style.width='100%';
-
-  await Promise.all([loadInventory(), loadSuppliers()]);
-  await loadPurchaseOrders();
 
   setTimeout(()=>{
     const loader=document.getElementById('loader');
@@ -1177,10 +1302,10 @@ window.addEventListener('load', async ()=>{
     renderCritical();
     renderDashAlerts();
     const msg=backendOnline
-      ?`✓ CONNECTED TO API — ${inventory.length} ITEMS FROM DB`
+      ?`⚡ LIVE SYNC ACTIVE — ${inventory.length} ITEMS`
       :`⚡ OFFLINE MODE — ${inventory.length} ITEMS (LOCAL)`;
     showToast(msg);
-  },1800);
+  },1200);
 });
 
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
